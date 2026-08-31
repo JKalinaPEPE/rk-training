@@ -1,19 +1,28 @@
-FROM node:22.13.0-bookworm-slim AS build
+FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
+
 COPY package.json package-lock.json ./
 RUN npm ci
+
 COPY . .
 RUN npm run build
 
-FROM node:22.13.0-bookworm-slim AS runtime
+FROM node:22-alpine AS runtime
 
 ENV NODE_ENV=production
 WORKDIR /app
-COPY --from=build /app/package.json /app/package-lock.json ./
-COPY --from=build /app/node_modules ./node_modules
+
+RUN apk upgrade --no-cache
+
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev \
+    && npm cache clean --force \
+    && rm -rf /usr/local/lib/node_modules/npm
+
 COPY --from=build /app/dist ./dist
-COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/.openai ./.openai
+
 EXPOSE 3000
-CMD ["npm", "start"]
+
+CMD ["./node_modules/.bin/vinext", "start"]
