@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Calidad y pruebas
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v4
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Pruebas y build
+        run: npm test
+      - name: Guardar build
+        uses: actions/upload-artifact@v4
+        with:
+          name: rk-training-${{ github.sha }}
+          path: dist/
+          retention-days: 7
+
+  secrets:
+    name: Detección de secretos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+
+  container:
+    name: Imagen Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir imagen
+        run: docker build --tag rk-training:${{ github.sha }} .
+      - name: Analizar vulnerabilidades
+        uses: aquasecurity/trivy-action@0.32.0
+        with:
+          image-ref: rk-training:${{ github.sha }}
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true

@@ -1,0 +1,26 @@
+name: Promover a producción
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validar candidato
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - name: Confirmar candidato de producción
+        run: echo "El commit $GITHUB_SHA superó la validación para PROD."
